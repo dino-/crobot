@@ -22,3 +22,10 @@ main = do
 
    putStrLn "\ngetOpenOrders"
    print =<< getOpenOrders creds
+
+
+   putStrLn "\ngetBalance BCC"
+   print =<< getBalance creds "BCC"
+
+   putStrLn "\ngetBalance FOO"
+   print =<< getBalance creds "FOO"

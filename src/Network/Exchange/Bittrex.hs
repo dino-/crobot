@@ -1,11 +1,14 @@
 {-# LANGUAGE DeriveGeneric, GeneralizedNewtypeDeriving, OverloadedStrings #-}
 
 module Network.Exchange.Bittrex
-   ( BittrexCreds (..)
+   ( Balance (..)
+   , BittrexCreds (..)
+   , Currency
    , Market (..)
    , Order (..)
    , Ticker (..)
 
+   , getBalance
    , getOpenOrders
    , getTicker
    )
@@ -15,12 +18,12 @@ import Control.Monad.Except ( runExcept, throwError, unless )
 import Crypto.Hash.SHA512 ( hmac )
 import Data.Aeson hiding ( encode )
 import Data.Aeson.Types (Options (constructorTagModifier,
-   fieldLabelModifier, tagSingleConstructors), camelTo2, defaultOptions, typeMismatch )
+   fieldLabelModifier, tagSingleConstructors), camelTo2, defaultOptions )
 import Data.ByteString.Base16 ( encode )
-import Data.Char ( toLower, toUpper )
+import Data.Char ( toUpper )
 import Data.Maybe ( fromJust )
 import Data.String.Conv ( toS )
-import Data.Text hiding ( head, map, tail, toLower, toUpper )
+import Data.Text hiding ( head, map, tail, toUpper )
 import qualified Data.Text as T
 import Data.Time ( UTCTime, defaultTimeLocale, formatTime,
    getCurrentTime, iso8601DateFormat, parseTimeM )
@@ -58,7 +61,10 @@ data BittrexResponse a = BittrexResponse
 instance FromJSON a => FromJSON (BittrexResponse a)
 
 
-data Market = Market Text Text
+type Currency = Text
+
+
+data Market = Market Currency Currency
    deriving Generic
 
 instance Show Market where
@@ -68,6 +74,11 @@ instance FromJSON Market where
    parseJSON = withText "Market" $ \t -> return $ Market
       (T.takeWhile (/= '-') t)
       (T.tail . T.dropWhile (/= '-') $ t)
+
+
+capFirstParseOptions :: Options
+capFirstParseOptions = defaultOptions
+   { fieldLabelModifier = \s -> (toUpper . head $ s) : tail s }
 
 
 newtype Amount = Amount Float
@@ -82,12 +93,7 @@ data Ticker = Ticker
    deriving (Generic, Show)
 
 instance FromJSON Ticker where
-   parseJSON o@(Object _) = genericParseJSON tickerParseOptions o
-      where
-         capFirst s = (toUpper . head $ s) : (map toLower . tail $ s)
-         tickerParseOptions = defaultOptions { fieldLabelModifier = capFirst }
-
-   parseJSON invalid = typeMismatch "Ticker" invalid
+   parseJSON = genericParseJSON capFirstParseOptions
 
 
 {- Example public/getticker response document
@@ -250,23 +256,57 @@ getOpenOrders (BittrexCreds apiKey apiSecret) = do
       return . fromJust . result $ br
 
 
--- Assuming the API secret is coming from something monadic, possibly impure, so pass it in
+{- Example account/getbalance response document
+
+   {
+       "success": true,
+       "message": "",
+       "result": {
+           "Currency": "BCC",
+           "Balance": 0.98673048,
+           "Available": 0.98673048,
+           "Pending": 0.00000000,
+           "CryptoAddress": "1Mblahblahblah"
+       }
+   }
+
+-}
+
+
+data Balance = Balance
+   { currency :: Currency
+   , balance :: Amount
+   , available :: Amount
+   , pending :: Amount
+   , cryptoAddress :: Text
+   }
+   deriving (Generic, Show)
+
+instance FromJSON Balance where
+   parseJSON = genericParseJSON capFirstParseOptions
+
+
+getBalance :: BittrexCreds -> Currency -> IO (Either String Balance)
+getBalance (BittrexCreds apiKey apiSecret) currency' = do
+   nonce <- formatTime defaultTimeLocale "%s" <$> getCurrentTime
+
+   let uri = printf "%s/account/getbalance?apikey=%s&nonce=%s&currency=%s"
+         baseUri apiKey nonce currency'
+   (code, rawdoc) <- curlGetString uri $ signUri apiSecret uri
+   --print code
+   --hPutStrLn stderr . toS $ rawdoc
+
+   return . runExcept $ do
+      unless (code == CurlOK) $
+         throwError $ printf "curl call failed, code: %s, document returned:\n%s"
+         (show code) ((toS rawdoc) :: String)
+      br <- maybe (throwError "Unable to parse reply into a BittrexResponse Balance")
+         return $ decode . toS $ rawdoc
+      unless (success br) $
+         throwError $ "API call unsuccessful, message:\n" ++ (toS . message $ br)
+      return . fromJust . result $ br
+
+
 signUri :: ApiSecret -> Uri -> [CurlOption]
 signUri apiSecret uri = [CurlHttpHeaders ["apisign:" ++ (toS . encode $ sign)]]
    where sign = hmac (toS apiSecret) (toS uri)
-
-
-{-
-main :: IO ()
-main = do
-   nonce <- formatTime defaultTimeLocale "%s" <$> getCurrentTime
-
-   --let uri = printf "https://bittrex.com/api/v1.1/market/getopenorders?apikey=%s&nonce=%s" apiKey nonce
-   let uri = printf "https://bittrex.com/api/v1.1/public/getticker?market=BTC-LTC"
-   --let uri = printf "https://bittrex.com/api/v1.1/account/getbalance?apikey=%s&nonce=%s&currency=BCC" apiKey nonce
-
-   resp <- curlGetString uri $ signUri apiSecret uri
-
-   hPutStrLn stderr $ "Got response: " ++ (show . fst $ resp)
-   putStrLn . snd $ resp
--}
