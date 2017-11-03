@@ -24,6 +24,7 @@ executable crobot
                      , base16-bytestring
                      , cryptohash-sha512
                      , curl
+                     , filepath
                      , mtl
                      , string-conv
                      , text

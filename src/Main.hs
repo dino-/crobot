@@ -2,6 +2,8 @@
 
 module Main where
 
+import System.Environment ( getEnv )
+import System.FilePath ( (<.>), (</>) )
 import Text.Printf ( printf )
 
 import Network.Exchange.Bittrex
@@ -9,7 +11,10 @@ import Network.Exchange.Bittrex
 
 main :: IO ()
 main = do
-   creds <- ((read <$> readFile "/home/dino/.config/crobot/bittrex.creds") :: IO BittrexCreds)
+   creds <- do
+      home <- getEnv "HOME"
+      let path = home </> ".config" </> "crobot" </> "bittrex" <.> "creds"
+      read <$> readFile path
 
 
    let mktBTC_LTC = Market "BTC" "LTC"
