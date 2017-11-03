@@ -2,7 +2,7 @@
 
 module Main where
 
---import Text.Printf ( printf )
+import Text.Printf ( printf )
 
 import Network.Exchange.Bittrex
 
@@ -14,7 +14,10 @@ main = do
    print creds
    -}
 
-   resp <- market_getTicker $ Market "BTC" "LTC"
-   --resp <- market_getTicker $ Market "BTC" "FOO"
+   let mktBTC_LTC = Market "BTC" "LTC"
+   printf "\nmarket_getTicker for %s\n" (show mktBTC_LTC)
+   print =<< getTicker mktBTC_LTC
 
-   putStrLn $ "Got response: " ++ (show resp)
+   let mktFOO_BAR = Market "FOO" "BAR"
+   printf "\nmarket_getTicker for %s\n" (show mktFOO_BAR)
+   print =<< getTicker mktFOO_BAR

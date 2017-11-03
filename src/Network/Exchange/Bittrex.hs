@@ -5,7 +5,7 @@ module Network.Exchange.Bittrex
    , Market (..)
    , Ticker (..)
 
-   , market_getTicker
+   , getTicker
    )
 where
 
@@ -96,8 +96,8 @@ instance FromJSON Ticker where
 
 -}
 
-market_getTicker :: Market -> IO (Either String Ticker)
-market_getTicker market = do
+getTicker :: Market -> IO (Either String Ticker)
+getTicker market = do
    let uri = printf "%s/public/getticker?market=%s" baseUri (show market)
    (code, rawdoc) <- curlGetString uri []
    --print code
