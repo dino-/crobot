@@ -39,6 +39,10 @@ baseUri :: String
 baseUri = "https://bittrex.com/api/v1.1"
 
 
+generateNonce :: IO String
+generateNonce = formatTime defaultTimeLocale "%s" <$> getCurrentTime
+
+
 type Uri = String
 
 type ApiSecret = Text
@@ -117,19 +121,7 @@ instance FromJSON Ticker where
 getTicker :: Market -> IO (Either String Ticker)
 getTicker market = do
    let uri = printf "%s/public/getticker?market=%s" baseUri (show market)
-   (code, rawdoc) <- curlGetString uri []
-   --print code
-   --print rawdoc
-
-   return . runExcept $ do
-      unless (code == CurlOK) $
-         throwError $ printf "curl call failed, code: %s, document returned:\n%s"
-         (show code) ((toS rawdoc) :: String)
-      br <- maybe (throwError "Unable to parse reply into a BittrexResponse Ticker")
-         return $ decode . toS $ rawdoc
-      unless (success br) $
-         throwError $ "API call unsuccessful, message:\n" ++ (toS . message $ br)
-      return . fromJust . result $ br
+   curlGetString uri [] >>= tryParse "Ticker"
 
 
 data OrderType
@@ -238,22 +230,10 @@ instance FromJSON Order where
 
 getOpenOrders :: BittrexCreds -> IO (Either String [Order])
 getOpenOrders (BittrexCreds apiKey apiSecret) = do
-   nonce <- formatTime defaultTimeLocale "%s" <$> getCurrentTime
+   nonce <- generateNonce
 
    let uri = printf "%s/market/getopenorders?apikey=%s&nonce=%s" baseUri apiKey nonce
-   (code, rawdoc) <- curlGetString uri $ signUri apiSecret uri
-   --print code
-   --hPutStrLn stderr . toS $ rawdoc
-
-   return . runExcept $ do
-      unless (code == CurlOK) $
-         throwError $ printf "curl call failed, code: %s, document returned:\n%s"
-         (show code) ((toS rawdoc) :: String)
-      br <- maybe (throwError "Unable to parse reply into a BittrexResponse [Order]")
-         return $ decode . toS $ rawdoc
-      unless (success br) $
-         throwError $ "API call unsuccessful, message:\n" ++ (toS . message $ br)
-      return . fromJust . result $ br
+   curlGetString uri (signUri apiSecret uri) >>= tryParse "[Order]"
 
 
 {- Example account/getbalance response document
@@ -288,11 +268,16 @@ instance FromJSON Balance where
 
 getBalance :: BittrexCreds -> Currency -> IO (Either String Balance)
 getBalance (BittrexCreds apiKey apiSecret) currency' = do
-   nonce <- formatTime defaultTimeLocale "%s" <$> getCurrentTime
+   nonce <- generateNonce
 
    let uri = printf "%s/account/getbalance?apikey=%s&nonce=%s&currency=%s"
          baseUri apiKey nonce currency'
-   (code, rawdoc) <- curlGetString uri $ signUri apiSecret uri
+
+   curlGetString uri (signUri apiSecret uri) >>= tryParse "Balance"
+
+
+tryParse :: FromJSON f => String -> (CurlCode, String) -> IO (Either String f)
+tryParse typeName (code, rawdoc) = do
    --print code
    --hPutStrLn stderr . toS $ rawdoc
 
@@ -300,7 +285,7 @@ getBalance (BittrexCreds apiKey apiSecret) currency' = do
       unless (code == CurlOK) $
          throwError $ printf "curl call failed, code: %s, document returned:\n%s"
          (show code) ((toS rawdoc) :: String)
-      br <- maybe (throwError "Unable to parse reply into a BittrexResponse Balance")
+      br <- maybe (throwError $ "Unable to parse reply into a BittrexResponse " ++ typeName)
          return $ decode . toS $ rawdoc
       unless (success br) $
          throwError $ "API call unsuccessful, message:\n" ++ (toS . message $ br)
