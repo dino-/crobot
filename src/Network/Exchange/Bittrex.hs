@@ -10,6 +10,7 @@ module Network.Exchange.Bittrex
 
    , getBalance
    , getOpenOrders
+   , getOrder
    , getTicker
    )
 where
@@ -21,6 +22,7 @@ import Data.Aeson.Types (Options (constructorTagModifier,
    fieldLabelModifier, tagSingleConstructors), camelTo2, defaultOptions )
 import Data.ByteString.Base16 ( encode )
 import Data.Char ( toUpper )
+import qualified Data.HashMap.Lazy as H
 import Data.Maybe ( fromJust )
 import Data.String.Conv ( toS )
 import Data.Text hiding ( head, map, tail, toUpper )
@@ -161,20 +163,36 @@ data Order = Order
    deriving (Generic, Show)
 
 instance FromJSON Order where
-   parseJSON = withObject "Order" $ \v -> Order
-      <$> v .: "OrderUuid"
-      <*> v .: "Exchange"
-      <*> v .: "OrderType"
-      <*> v .: "Quantity"
-      <*> v .: "QuantityRemaining"
-      <*> v .: "Limit"
-      <*> v .: "CommissionPaid"
-      <*> v .: "Price"
-      <*> v .: "PricePerUnit"
-      <*> v .: "Opened"
-      <*> v .: "Closed"
-      <*> v .: "CancelInitiated"
-      <*> v .: "ImmediateOrCancel"
+   parseJSON = withObject "Order" $ \v' -> do
+      let v = fixOrderType v'
+      Order
+         <$> v .: "OrderUuid"
+         <*> v .: "Exchange"
+         <*> v .: "OrderType"
+         <*> v .: "Quantity"
+         <*> v .: "QuantityRemaining"
+         <*> v .: "Limit"
+         <*> v .: "CommissionPaid"
+         <*> v .: "Price"
+         <*> v .: "PricePerUnit"
+         <*> v .: "Opened"
+         <*> v .: "Closed"
+         <*> v .: "CancelInitiated"
+         <*> v .: "ImmediateOrCancel"
+
+
+{- Nice job at Bittrex using two different key strings for order
+   type in otherwise similar JSON data
+
+   'OrderType' in market/getopenorders
+   'Type' in account/getorder.
+
+   Sloppy work!
+-}
+fixOrderType :: Object -> Object
+fixOrderType o = maybe o
+   (\v -> H.insert "OrderType" v (H.delete "Type" o))
+   $ H.lookup "Type" o
 
 
 --type Orders = [Order]
@@ -234,6 +252,14 @@ getOpenOrders (BittrexCreds apiKey apiSecret) = do
 
    let uri = printf "%s/market/getopenorders?apikey=%s&nonce=%s" baseUri apiKey nonce
    curlGetString uri (signUri apiSecret uri) >>= tryParse "[Order]"
+
+
+getOrder :: BittrexCreds -> Text -> IO (Either String Order)
+getOrder (BittrexCreds apiKey apiSecret) uuid = do
+   nonce <- generateNonce
+
+   let uri = printf "%s/account/getorder?apikey=%s&nonce=%s&uuid=%s" baseUri apiKey nonce uuid
+   curlGetString uri (signUri apiSecret uri) >>= tryParse "Order"
 
 
 {- Example account/getbalance response document

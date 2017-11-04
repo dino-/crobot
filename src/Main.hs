@@ -2,6 +2,9 @@
 
 module Main where
 
+import Control.Monad ( when )
+import Data.Either ( fromRight, isRight )
+import Data.String.Conv ( toS )
 import System.Environment ( getEnv )
 import System.FilePath ( (<.>), (</>) )
 import Text.Printf ( printf )
@@ -26,7 +29,8 @@ main = do
    print =<< getTicker mktFOO_BAR
 
    putStrLn "\ngetOpenOrders"
-   print =<< getOpenOrders creds
+   orders <- getOpenOrders creds
+   print orders
 
 
    putStrLn "\ngetBalance BCC"
@@ -34,3 +38,12 @@ main = do
 
    putStrLn "\ngetBalance FOO"
    print =<< getBalance creds "FOO"
+
+
+   when (isRight orders) $ do
+      let orderUuid' = orderUuid . head . fromRight [] $ orders
+      putStrLn $ "\ngetOrder " ++ (toS orderUuid')
+      print =<< getOrder creds orderUuid'
+
+   putStrLn "\ngetOrder FOO"
+   print =<< getOrder creds "FOO"

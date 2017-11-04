@@ -27,6 +27,7 @@ executable crobot
                      , filepath
                      , mtl
                      , string-conv
+                     , unordered-containers
                      , text
                      , time
    other-modules:    Network.Exchange.Bittrex
