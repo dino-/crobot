@@ -1,12 +1,14 @@
 {-# LANGUAGE DeriveGeneric, GeneralizedNewtypeDeriving, OverloadedStrings #-}
 
 module Network.Exchange.Bittrex
-   ( Balance (..)
+   ( Amount
+   , Balance (..)
    , BittrexCreds (..)
    , Currency
    , Market (..)
    , Order (..)
    , Ticker (..)
+   , Uuid (..)
 
    , getBalance
    , getOpenOrders
@@ -91,6 +93,10 @@ newtype Amount = Amount Float
    deriving (FromJSON, Generic, Show)
 
 
+newtype Uuid = Uuid Text
+   deriving (FromJSON, Generic, Show)
+
+
 data Ticker = Ticker
    { bid :: Amount
    , ask :: Amount
@@ -146,7 +152,7 @@ instance FromJSON Timestamp where
 
 
 data Order = Order
-   { orderUuid :: Text
+   { orderUuid :: Uuid
    , exchange :: Market
    , orderType :: OrderType
    , quantity :: Amount
@@ -254,8 +260,8 @@ getOpenOrders (BittrexCreds apiKey apiSecret) = do
    curlGetString uri (signUri apiSecret uri) >>= tryParse "[Order]"
 
 
-getOrder :: BittrexCreds -> Text -> IO (Either String Order)
-getOrder (BittrexCreds apiKey apiSecret) uuid = do
+getOrder :: BittrexCreds -> Uuid -> IO (Either String Order)
+getOrder (BittrexCreds apiKey apiSecret) (Uuid uuid) = do
    nonce <- generateNonce
 
    let uri = printf "%s/account/getorder?apikey=%s&nonce=%s&uuid=%s" baseUri apiKey nonce uuid

@@ -4,7 +4,6 @@ module Main where
 
 import Control.Monad ( when )
 import Data.Either ( fromRight, isRight )
-import Data.String.Conv ( toS )
 import System.Environment ( getEnv )
 import System.FilePath ( (<.>), (</>) )
 import Text.Printf ( printf )
@@ -42,8 +41,8 @@ main = do
 
    when (isRight orders) $ do
       let orderUuid' = orderUuid . head . fromRight [] $ orders
-      putStrLn $ "\ngetOrder " ++ (toS orderUuid')
+      printf "\ngetOrder (%s)\n" (show orderUuid')
       print =<< getOrder creds orderUuid'
 
    putStrLn "\ngetOrder FOO"
-   print =<< getOrder creds "FOO"
+   print =<< getOrder creds (Uuid "FOO")
