@@ -17,6 +17,7 @@ module Network.Exchange.Bittrex
    , getOpenOrders
    , getOrder
    , getTicker
+   , sellLimit
    )
 where
 
@@ -334,19 +335,32 @@ buyLimit (BittrexCreds apiKey apiSecret) market (Quantity quantity') (Amount rat
    let uri = printf "%s/market/buylimit?apikey=%s&nonce=%s&market=%s&quantity=%f&rate=%f"
          baseUri apiKey nonce (show market) quantity' rate
 
+   -- Parsing this into the temporary ObjUuid data structure above
    ou <- curlGetString uri (signUri apiSecret uri) >>= tryParse "Uuid"
    return $ uuid' <$> ou
 
 
-cancel :: BittrexCreds -> Uuid -> IO (Either String Bool)
+sellLimit :: BittrexCreds -> Market -> Quantity -> Amount -> IO (Either String Uuid)
+sellLimit (BittrexCreds apiKey apiSecret) market (Quantity quantity') (Amount rate) = do
+   nonce <- generateNonce
+
+   let uri = printf "%s/market/selllimit?apikey=%s&nonce=%s&market=%s&quantity=%f&rate=%f"
+         baseUri apiKey nonce (show market) quantity' rate
+
+   -- Parsing this into the temporary ObjUuid data structure above
+   ou <- curlGetString uri (signUri apiSecret uri) >>= tryParse "Uuid"
+   return $ uuid' <$> ou
+
+
+cancel :: BittrexCreds -> Uuid -> IO (Either String ())
 cancel (BittrexCreds apiKey apiSecret) (Uuid uuid) = do
    nonce <- generateNonce
 
    let uri = printf "%s/market/cancel?apikey=%s&nonce=%s&uuid=%s"
          baseUri apiKey nonce uuid
 
-   em <- curlGetString uri (signUri apiSecret uri) >>= tryParse "Bool"
-   return $ either Left (const . Right $ True) (em :: Either String ())
+   em <- curlGetString uri (signUri apiSecret uri) >>= tryParse "()"
+   return $ either Left (const . Right $ ()) (em :: Either String ())
 
 
 tryParse :: FromJSON f => String -> (CurlCode, String) -> IO (Either String f)
