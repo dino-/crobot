@@ -1,7 +1,8 @@
 {-# LANGUAGE DeriveGeneric, GeneralizedNewtypeDeriving, OverloadedStrings #-}
 
 module Network.Exchange.Bittrex
-   ( Amount
+   ( Amount (..)
+   , Quantity (..)
    , Balance (..)
    , BittrexCreds (..)
    , Currency
@@ -10,6 +11,8 @@ module Network.Exchange.Bittrex
    , Ticker (..)
    , Uuid (..)
 
+   , buyLimit
+   , cancel
    , getBalance
    , getOpenOrders
    , getOrder
@@ -93,6 +96,10 @@ newtype Amount = Amount Float
    deriving (FromJSON, Generic, Show)
 
 
+newtype Quantity = Quantity Float
+   deriving Show
+
+
 newtype Uuid = Uuid Text
    deriving (FromJSON, Generic, Show)
 
@@ -133,7 +140,8 @@ getTicker market = do
 
 
 data OrderType
-   = LimitSell
+   = LimitBuy
+   | LimitSell
    deriving (Generic, Show)
 
 instance FromJSON OrderType where
@@ -306,6 +314,39 @@ getBalance (BittrexCreds apiKey apiSecret) currency' = do
          baseUri apiKey nonce currency'
 
    curlGetString uri (signUri apiSecret uri) >>= tryParse "Balance"
+
+
+{- Internal type to parse a JSON object with a single Uuid key/value
+   pair in it into just a Uuid data structure but without screwing up
+   our existing instancing of Uuid above.
+-}
+newtype ObjUuid = ObjUuid { uuid' :: Uuid }
+   deriving (Generic, Show)
+
+instance FromJSON ObjUuid where
+   parseJSON = withObject "Uuid" $ \v -> ObjUuid <$> v .: "uuid"
+
+
+buyLimit :: BittrexCreds -> Market -> Quantity -> Amount -> IO (Either String Uuid)
+buyLimit (BittrexCreds apiKey apiSecret) market (Quantity quantity') (Amount rate) = do
+   nonce <- generateNonce
+
+   let uri = printf "%s/market/buylimit?apikey=%s&nonce=%s&market=%s&quantity=%f&rate=%f"
+         baseUri apiKey nonce (show market) quantity' rate
+
+   ou <- curlGetString uri (signUri apiSecret uri) >>= tryParse "Uuid"
+   return $ uuid' <$> ou
+
+
+cancel :: BittrexCreds -> Uuid -> IO (Either String Bool)
+cancel (BittrexCreds apiKey apiSecret) (Uuid uuid) = do
+   nonce <- generateNonce
+
+   let uri = printf "%s/market/cancel?apikey=%s&nonce=%s&uuid=%s"
+         baseUri apiKey nonce uuid
+
+   em <- curlGetString uri (signUri apiSecret uri) >>= tryParse "Bool"
+   return $ either Left (const . Right $ True) (em :: Either String ())
 
 
 tryParse :: FromJSON f => String -> (CurlCode, String) -> IO (Either String f)
