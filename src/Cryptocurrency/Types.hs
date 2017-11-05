@@ -30,7 +30,10 @@ instance FromJSON Market where
 
 
 newtype Amount = Amount Float
-   deriving (FromJSON, Generic, Show)
+   deriving (FromJSON, Generic)
+
+instance Show Amount where
+   show (Amount f) = printf "%0.8f" f
 
 
 newtype Quantity = Quantity Float
