@@ -9,7 +9,9 @@ import System.Environment ( getEnv )
 import System.FilePath ( (<.>), (</>) )
 import Text.Printf ( printf )
 
-import Network.Exchange.Bittrex
+import Cryptocurrency.Types ( Amount (..), Market (..), Quantity (..) )
+import Network.Exchange.Bittrex ( Order (..), Uuid (..), buyLimit,
+ cancel, getBalance, getOpenOrders, getOrder, getTicker, sellLimit )
 
 
 seconds2 :: Int

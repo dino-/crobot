@@ -30,7 +30,8 @@ executable crobot
                      , unordered-containers
                      , text
                      , time
-   other-modules:    Network.Exchange.Bittrex
+   other-modules:    Cryptocurrency.Types
+                     Network.Exchange.Bittrex
 
 --test-suite tests
 --   hs-source-dirs:   testsuite

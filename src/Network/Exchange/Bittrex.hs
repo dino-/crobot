@@ -1,12 +1,8 @@
 {-# LANGUAGE DeriveGeneric, GeneralizedNewtypeDeriving, OverloadedStrings #-}
 
 module Network.Exchange.Bittrex
-   ( Amount (..)
-   , Quantity (..)
-   , Balance (..)
+   ( Balance (..)
    , BittrexCreds (..)
-   , Currency
-   , Market (..)
    , Order (..)
    , Ticker (..)
    , Uuid (..)
@@ -23,7 +19,8 @@ where
 
 import Control.Monad.Except ( runExcept, throwError, unless )
 import Crypto.Hash.SHA512 ( hmac )
-import Data.Aeson hiding ( encode )
+import Data.Aeson ( FromJSON, Object, (.:), decode, genericParseJSON,
+   parseJSON, withObject, withText )
 import Data.Aeson.Types (Options (constructorTagModifier,
    fieldLabelModifier, tagSingleConstructors), camelTo2, defaultOptions )
 import Data.ByteString.Base16 ( encode )
@@ -31,8 +28,7 @@ import Data.Char ( toUpper )
 import qualified Data.HashMap.Lazy as H
 import Data.Maybe ( fromJust )
 import Data.String.Conv ( toS )
-import Data.Text hiding ( head, map, tail, toUpper )
-import qualified Data.Text as T
+import Data.Text ( Text )
 import Data.Time ( UTCTime, defaultTimeLocale, formatTime,
    getCurrentTime, iso8601DateFormat, parseTimeM )
 --import Debug.Trace ( trace )
@@ -41,6 +37,8 @@ import Network.Curl ( CurlOption (CurlHttpHeaders), curlGetString )
 import Network.Curl.Code ( CurlCode (CurlOK) )
 --import System.IO ( hPutStrLn, stderr )
 import Text.Printf ( printf )
+
+import Cryptocurrency.Types ( Amount (..), Quantity (..), Currency, Market (..) )
 
 
 baseUri :: String
@@ -73,32 +71,9 @@ data BittrexResponse a = BittrexResponse
 instance FromJSON a => FromJSON (BittrexResponse a)
 
 
-type Currency = Text
-
-
-data Market = Market Currency Currency
-   deriving Generic
-
-instance Show Market where
-   show (Market cur1 cur2) = printf "%s-%s" cur1 cur2
-
-instance FromJSON Market where
-   parseJSON = withText "Market" $ \t -> return $ Market
-      (T.takeWhile (/= '-') t)
-      (T.tail . T.dropWhile (/= '-') $ t)
-
-
 capFirstParseOptions :: Options
 capFirstParseOptions = defaultOptions
    { fieldLabelModifier = \s -> (toUpper . head $ s) : tail s }
-
-
-newtype Amount = Amount Float
-   deriving (FromJSON, Generic, Show)
-
-
-newtype Quantity = Quantity Float
-   deriving Show
 
 
 newtype Uuid = Uuid Text
